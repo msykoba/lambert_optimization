@@ -63,7 +63,11 @@ def objective(trial):
     vector_arr = [varr[0].value, varr[1].value, varr[2].value]
     RANGE_arr, RA_arr, DEC_arr = spiceypy.recrad( vector_arr )
     # print(RANGE_arr, np.rad2deg(RA_arr), np.rad2deg(DEC_arr))
-    return RANGE_dep**2
+    if RANGE_dep > 4:
+        RANGE_dep = 4
+    if RANGE_arr > 4:
+        RANGE_arr = 4
+    return RANGE_dep, RANGE_arr
 
 
 if __name__ == '__main__':
@@ -72,55 +76,23 @@ if __name__ == '__main__':
     spiceypy.furnsh(METAKR)
 
     # default, TPE(ベイズ最適化)
-    study = optuna.create_study(direction="minimize")
-
-    # ランダムサーチ
-    # study = optuna.create_study(
-    #     direction="minimize", 
-    #     sampler=optuna.samplers.RandomSampler()
-    # )
-
-    # グリッドサーチ
-    # search_space = {
-    #     'x': np.linspace(dep_time1, dep_time2, 10), 
-    #     'y': np.linspace(arr_time1, arr_time2, 10)
-    # }
-    # study = optuna.create_study(
-    #     direction="minimize", 
-    #     sampler=optuna.samplers.GridSampler(search_space=search_space)
-    # )
-
-    #
-    # RDB
-    #
-    # study = optuna.create_study(
-    #     direction="minimize", 
-    #     storage="sqlite:///optuna.db", 
-    #     study_name="ch1-conditional", 
-    # )
-
-    #
-    # load study
-    #
-    # study = optuna.load_study(
-    #     storage="sqlite:///optuna.db", 
-    #     study_name="ch1-conditional", 
-    # )
-
-    #
-    # optimize
-    #
-    study.optimize(objective, n_trials=100)
-
-    print(f"Best objective value: {study.best_value}")
-    print(f"Best parameter: {study.best_params}")
-    dep_opt = astropy.time.Time(study.best_params["x"], format='mjd')
-    arr_opt = astropy.time.Time(study.best_params["y"], format='mjd')
-    print(dep_opt.datetime)
-    print(arr_opt.datetime)
-
-    fig = optuna.visualization.plot_contour(
-        study=study, 
-        params=["x", "y"]
+    study = optuna.create_study(
+        directions=["minimize", "minimize"]
     )
-    fig.write_image('./img/optimize_lambert.png')  # save as png file ($ pip install -U kaleido)
+
+    # optimize
+    study.optimize(objective, n_trials=1000)
+
+    print("Best Trials")
+    for t in study.best_trials:
+        print(f"- [{t.number}] params={t.params}, values={t.values}")
+        dep_opt = astropy.time.Time(t.params["x"], format='mjd')
+        arr_opt = astropy.time.Time(t.params["y"], format='mjd')
+        print(dep_opt.datetime)
+        print(arr_opt.datetime)
+
+    fig = optuna.visualization.plot_pareto_front(
+        study, 
+        include_dominated_trials=False
+    )
+    fig.write_image('./img/pareto_front.png')  # save as png file ($ pip install -U kaleido)
